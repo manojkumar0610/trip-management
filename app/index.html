@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>TripSync — Smart Trip Management</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="css/main.css"/>
+</head>
+<body>
+
+<!-- AUTH OVERLAY -->
+<div id="auth-overlay" class="auth-overlay">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <span class="logo-icon">✦</span>
+      <span class="logo-text">TripSync</span>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchTab('login')">Sign In</button>
+      <button class="auth-tab" onclick="switchTab('signup')">Sign Up</button>
+    </div>
+    <div id="login-form" class="auth-form active">
+      <div class="field-group">
+        <label>Email</label>
+        <input type="email" id="login-email" placeholder="you@example.com"/>
+      </div>
+      <div class="field-group">
+        <label>Password</label>
+        <input type="password" id="login-pass" placeholder="••••••••"/>
+      </div>
+      <button class="btn-primary full" onclick="handleLogin()">Sign In →</button>
+      <p class="auth-demo">Demo: <code>demo@tripsync.in</code> / <code>demo123</code></p>
+    </div>
+    <div id="signup-form" class="auth-form">
+      <div class="field-group">
+        <label>Full Name</label>
+        <input type="text" id="signup-name" placeholder="Manoj Kumar"/>
+      </div>
+      <div class="field-group">
+        <label>Email</label>
+        <input type="email" id="signup-email" placeholder="you@example.com"/>
+      </div>
+      <div class="field-group">
+        <label>Password</label>
+        <input type="password" id="signup-pass" placeholder="••••••••"/>
+      </div>
+      <button class="btn-primary full" onclick="handleSignup()">Create Account →</button>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app" class="app hidden">
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-icon">✦</span>
+      <span class="logo-text">TripSync</span>
+    </div>
+    <ul class="nav-links">
+      <li><a href="#" class="nav-link active" data-page="dashboard" onclick="navigate('dashboard',this)">
+        <span class="nav-icon">⊞</span><span>Dashboard</span>
+      </a></li>
+      <li><a href="#" class="nav-link" data-page="trips" onclick="navigate('trips',this)">
+        <span class="nav-icon">◈</span><span>My Trips</span>
+      </a></li>
+      <li><a href="#" class="nav-link" data-page="itinerary" onclick="navigate('itinerary',this)">
+        <span class="nav-icon">◎</span><span>Itinerary</span>
+      </a></li>
+      <li><a href="#" class="nav-link" data-page="members" onclick="navigate('members',this)">
+        <span class="nav-icon">◇</span><span>Members</span>
+      </a></li>
+      <li><a href="#" class="nav-link" data-page="expenses" onclick="navigate('expenses',this)">
+        <span class="nav-icon">◉</span><span>Expenses</span>
+      </a></li>
+      <li><a href="#" class="nav-link" data-page="weather" onclick="navigate('weather',this)">
+        <span class="nav-icon">◌</span><span>Weather & Roads</span>
+      </a></li>
+      <li><a href="#" class="nav-link" data-page="ai" onclick="navigate('ai',this)">
+        <span class="nav-icon">✦</span><span>AI Assistant</span>
+      </a></li>
+    </ul>
+    <div class="sidebar-user">
+      <div class="user-avatar" id="user-avatar">MK</div>
+      <div class="user-info">
+        <div class="user-name" id="user-name">Manoj Kumar</div>
+        <div class="user-role">Trip Organizer</div>
+      </div>
+      <button class="logout-btn" onclick="handleLogout()" title="Logout">⊗</button>
+    </div>
+  </nav>
+
+  <!-- MOBILE TOP BAR -->
+  <div class="mobile-topbar">
+    <button class="hamburger" onclick="toggleSidebar()">☰</button>
+    <span class="logo-text">TripSync</span>
+    <div class="user-avatar sm" id="user-avatar-mobile">MK</div>
+  </div>
+
+  <!-- PAGES -->
+  <main class="main-content">
+
+    <!-- DASHBOARD -->
+    <div id="page-dashboard" class="page active">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Dashboard</h1>
+          <p class="page-sub" id="dash-greeting">Welcome back, Manoj</p>
+        </div>
+        <button class="btn-primary" onclick="navigate('trips', document.querySelector('[data-page=trips]')); showCreateTrip()">+ New Trip</button>
+      </div>
+
+      <!-- STATS GRID -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="stat-trips">3</div>
+          <div class="stat-label">Active Trips</div>
+          <div class="stat-trend up">+1 this month</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-members">12</div>
+          <div class="stat-label">Total Members</div>
+          <div class="stat-trend up">+3 added</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-expenses">₹84,200</div>
+          <div class="stat-label">Total Budget</div>
+          <div class="stat-trend neutral">On track</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-days">42</div>
+          <div class="stat-label">Days Planned</div>
+          <div class="stat-trend up">Next trip in 18d</div>
+        </div>
+      </div>
+
+      <!-- ACTIVE TRIP HIGHLIGHT -->
+      <div class="section-title">Active Trip</div>
+      <div class="trip-hero-card" onclick="navigate('itinerary', document.querySelector('[data-page=itinerary]'))">
+        <div class="trip-hero-bg"></div>
+        <div class="trip-hero-content">
+          <div class="trip-badge">IN PROGRESS</div>
+          <h2 class="trip-hero-title">Leh Odyssey 2026</h2>
+          <p class="trip-hero-sub">Bangalore → Leh · 18 days · 4,800 km</p>
+          <div class="trip-hero-meta">
+            <span>🏍 8 Riders</span>
+            <span>📅 Jun 15 – Jul 2</span>
+            <span>📍 Currently: Manali</span>
+          </div>
+          <div class="trip-progress-bar">
+            <div class="trip-progress-fill" style="width:34%"></div>
+          </div>
+          <div class="trip-progress-label">Day 6 of 18 · 34% complete</div>
+        </div>
+      </div>
+
+      <!-- QUICK ACTIONS -->
+      <div class="section-title">Quick Actions</div>
+      <div class="quick-actions">
+        <button class="quick-btn" onclick="navigate('expenses', document.querySelector('[data-page=expenses]')); showAddExpense()">
+          <span>₹</span>Add Expense
+        </button>
+        <button class="quick-btn" onclick="navigate('members', document.querySelector('[data-page=members]')); showAddMember()">
+          <span>+</span>Add Member
+        </button>
+        <button class="quick-btn" onclick="navigate('weather', document.querySelector('[data-page=weather]'))">
+          <span>⛅</span>Check Weather
+        </button>
+        <button class="quick-btn" onclick="navigate('ai', document.querySelector('[data-page=ai]'))">
+          <span>✦</span>Ask AI
+        </button>
+      </div>
+
+      <!-- RECENT ACTIVITY -->
+      <div class="section-title">Recent Activity</div>
+      <div class="activity-list" id="activity-list">
+        <div class="activity-item">
+          <div class="activity-dot green"></div>
+          <div class="activity-content">
+            <b>Rahul</b> added expense: Hotel Manali — ₹3,200
+            <div class="activity-time">2 hours ago</div>
+          </div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-dot blue"></div>
+          <div class="activity-content">
+            <b>Priya</b> joined as Photographer
+            <div class="activity-time">Yesterday</div>
+          </div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-dot amber"></div>
+          <div class="activity-content">
+            Day 7 itinerary updated: Manali → Jispa route
+            <div class="activity-time">2 days ago</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TRIPS PAGE -->
+    <div id="page-trips" class="page">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">My Trips</h1>
+          <p class="page-sub">Manage all your adventures</p>
+        </div>
+        <button class="btn-primary" onclick="showCreateTrip()">+ New Trip</button>
+      </div>
+
+      <!-- CREATE TRIP FORM (hidden by default) -->
+      <div id="create-trip-form" class="form-card hidden">
+        <h3 class="form-title">Create New Trip</h3>
+        <div class="form-grid">
+          <div class="field-group">
+            <label>Trip Name *</label>
+            <input type="text" id="trip-name" placeholder="e.g. Spiti Valley 2026"/>
+          </div>
+          <div class="field-group">
+            <label>From Location *</label>
+            <input type="text" id="trip-from" placeholder="e.g. Bangalore"/>
+          </div>
+          <div class="field-group">
+            <label>To Location *</label>
+            <input type="text" id="trip-to" placeholder="e.g. Leh, Ladakh"/>
+          </div>
+          <div class="field-group">
+            <label>Start Date</label>
+            <input type="date" id="trip-start"/>
+          </div>
+          <div class="field-group">
+            <label>End Date</label>
+            <input type="date" id="trip-end"/>
+          </div>
+          <div class="field-group">
+            <label>Trip Type</label>
+            <select id="trip-type">
+              <option>Bike Trip</option>
+              <option>Road Trip</option>
+              <option>Trekking</option>
+              <option>International</option>
+              <option>Backpacking</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label>Total Budget (₹)</label>
+            <input type="number" id="trip-budget" placeholder="50000"/>
+          </div>
+          <div class="field-group">
+            <label>Description</label>
+            <textarea id="trip-desc" placeholder="Trip overview..."></textarea>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn-ghost" onclick="hideCreateTrip()">Cancel</button>
+          <button class="btn-primary" onclick="createTrip()">Create Trip →</button>
+        </div>
+      </div>
+
+      <div class="trips-grid" id="trips-grid"></div>
+    </div>
+
+    <!-- ITINERARY PAGE -->
+    <div id="page-itinerary" class="page">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Itinerary</h1>
+          <p class="page-sub">Day-wise trip plan</p>
+        </div>
+        <div class="header-actions">
+          <select class="select-sm" id="itinerary-trip-select" onchange="loadItinerary()">
+            <option value="leh2026">Leh Odyssey 2026</option>
+          </select>
+          <button class="btn-primary" onclick="addDay()">+ Add Day</button>
+        </div>
+      </div>
+
+      <div class="itinerary-timeline" id="itinerary-timeline"></div>
+    </div>
+
+    <!-- MEMBERS PAGE -->
+    <div id="page-members" class="page">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Members</h1>
+          <p class="page-sub">Trip participants & contacts</p>
+        </div>
+        <button class="btn-primary" onclick="showAddMember()">+ Add Member</button>
+      </div>
+
+      <!-- ADD MEMBER FORM -->
+      <div id="add-member-form" class="form-card hidden">
+        <h3 class="form-title">Add Member</h3>
+        <div class="form-grid">
+          <div class="field-group">
+            <label>Full Name *</label>
+            <input type="text" id="mem-name" placeholder="e.g. Rahul Sharma"/>
+          </div>
+          <div class="field-group">
+            <label>Phone</label>
+            <input type="tel" id="mem-phone" placeholder="+91 98765 43210"/>
+          </div>
+          <div class="field-group">
+            <label>Email</label>
+            <input type="email" id="mem-email" placeholder="rahul@example.com"/>
+          </div>
+          <div class="field-group">
+            <label>Role</label>
+            <select id="mem-role">
+              <option>Rider</option>
+              <option>Co-Rider</option>
+              <option>Organizer</option>
+              <option>Photographer</option>
+              <option>Mechanic</option>
+              <option>Navigator</option>
+              <option>Medic</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label>Bike / Vehicle</label>
+            <input type="text" id="mem-vehicle" placeholder="e.g. Royal Enfield Himalayan"/>
+          </div>
+          <div class="field-group">
+            <label>Emergency Contact</label>
+            <input type="text" id="mem-emergency" placeholder="Name: +91 ..."/>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn-ghost" onclick="hideAddMember()">Cancel</button>
+          <button class="btn-primary" onclick="addMember()">Add Member →</button>
+        </div>
+      </div>
+
+      <div class="members-grid" id="members-grid"></div>
+    </div>
+
+    <!-- EXPENSES PAGE -->
+    <div id="page-expenses" class="page">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Expenses</h1>
+          <p class="page-sub">Track & split trip costs</p>
+        </div>
+        <button class="btn-primary" onclick="showAddExpense()">+ Add Expense</button>
+      </div>
+
+      <!-- ADD EXPENSE FORM -->
+      <div id="add-expense-form" class="form-card hidden">
+        <h3 class="form-title">Add Expense</h3>
+        <div class="form-grid">
+          <div class="field-group">
+            <label>Title *</label>
+            <input type="text" id="exp-title" placeholder="e.g. Hotel Manali"/>
+          </div>
+          <div class="field-group">
+            <label>Amount (₹) *</label>
+            <input type="number" id="exp-amount" placeholder="3200"/>
+          </div>
+          <div class="field-group">
+            <label>Category</label>
+            <select id="exp-cat">
+              <option>Accommodation</option>
+              <option>Fuel</option>
+              <option>Food</option>
+              <option>Entry Fees</option>
+              <option>Repair / Mechanic</option>
+              <option>Medical</option>
+              <option>Gear / Equipment</option>
+              <option>Toll / Ferry</option>
+              <option>Misc</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label>Paid By</label>
+            <select id="exp-paidby">
+              <option>Manoj Kumar</option>
+              <option>Rahul Sharma</option>
+              <option>Priya Nair</option>
+              <option>Vikram Singh</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label>Date</label>
+            <input type="date" id="exp-date"/>
+          </div>
+          <div class="field-group">
+            <label>Split Type</label>
+            <select id="exp-split">
+              <option>Equal Split</option>
+              <option>Only Me</option>
+              <option>Select Members</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn-ghost" onclick="hideAddExpense()">Cancel</button>
+          <button class="btn-primary" onclick="addExpense()">Add & Split →</button>
+        </div>
+      </div>
+
+      <!-- EXPENSE SUMMARY -->
+      <div class="expense-summary">
+        <div class="expense-stat-card">
+          <div class="exp-stat-label">Total Spent</div>
+          <div class="exp-stat-value" id="total-spent">₹0</div>
+        </div>
+        <div class="expense-stat-card">
+          <div class="exp-stat-label">Budget Left</div>
+          <div class="exp-stat-value green" id="budget-left">₹0</div>
+        </div>
+        <div class="expense-stat-card">
+          <div class="exp-stat-label">Per Person</div>
+          <div class="exp-stat-value" id="per-person">₹0</div>
+        </div>
+      </div>
+
+      <!-- SPLIT SUMMARY -->
+      <div class="section-title">Balance Summary</div>
+      <div class="split-summary" id="split-summary"></div>
+
+      <!-- EXPENSE LIST -->
+      <div class="section-title">All Expenses</div>
+      <div class="expense-list" id="expense-list"></div>
+    </div>
+
+    <!-- WEATHER & ROADS PAGE -->
+    <div id="page-weather" class="page">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Weather & Roads</h1>
+          <p class="page-sub">Live conditions for your route</p>
+        </div>
+        <div class="header-actions">
+          <input type="text" class="search-input" id="weather-location" placeholder="Search location..." value="Manali"/>
+          <button class="btn-primary" onclick="fetchWeather()">Check →</button>
+        </div>
+      </div>
+
+      <div id="weather-container">
+        <div class="weather-main-card" id="weather-main">
+          <div class="weather-loading">⟳ Fetching weather data...</div>
+        </div>
+        <div class="section-title">Route Conditions</div>
+        <div class="route-cards" id="route-cards"></div>
+        <div class="section-title">Traffic & Road Alerts</div>
+        <div class="traffic-list" id="traffic-list"></div>
+      </div>
+    </div>
+
+    <!-- AI ASSISTANT PAGE -->
+    <div id="page-ai" class="page">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">AI Assistant</h1>
+          <p class="page-sub">Your intelligent trip planning companion</p>
+        </div>
+      </div>
+      <div class="ai-chat-container">
+        <div class="ai-chat-messages" id="ai-messages">
+          <div class="ai-message bot">
+            <div class="ai-avatar">✦</div>
+            <div class="ai-bubble">
+              Hi! I'm your TripSync AI Assistant. I can help you plan itineraries, find best routes, suggest packing lists, estimate budgets, check permit requirements, and more.<br/><br/>
+              What would you like help with for your trip?
+            </div>
+          </div>
+          <div class="ai-suggestions">
+            <button class="suggestion-chip" onclick="sendSuggestion(this)">Plan a Spiti Valley itinerary</button>
+            <button class="suggestion-chip" onclick="sendSuggestion(this)">Best time to visit Leh</button>
+            <button class="suggestion-chip" onclick="sendSuggestion(this)">Permits needed for Ladakh</button>
+            <button class="suggestion-chip" onclick="sendSuggestion(this)">Packing list for Himalayan bike trip</button>
+            <button class="suggestion-chip" onclick="sendSuggestion(this)">Estimate budget for 8 people to Leh</button>
+          </div>
+        </div>
+        <div class="ai-input-area">
+          <textarea class="ai-input" id="ai-input" placeholder="Ask anything about your trip..." rows="1" onkeydown="handleAIKey(event)"></textarea>
+          <button class="ai-send-btn" onclick="sendAIMessage()" id="ai-send-btn">→</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- MOBILE NAV -->
+<nav class="mobile-bottom-nav" id="app-mobile-nav">
+  <button class="mob-nav-btn active" onclick="navigate('dashboard',this)" data-page="dashboard">
+    <span>⊞</span><small>Home</small>
+  </button>
+  <button class="mob-nav-btn" onclick="navigate('trips',this)" data-page="trips">
+    <span>◈</span><small>Trips</small>
+  </button>
+  <button class="mob-nav-btn" onclick="navigate('expenses',this)" data-page="expenses">
+    <span>◉</span><small>Expenses</small>
+  </button>
+  <button class="mob-nav-btn" onclick="navigate('weather',this)" data-page="weather">
+    <span>◌</span><small>Weather</small>
+  </button>
+  <button class="mob-nav-btn" onclick="navigate('ai',this)" data-page="ai">
+    <span>✦</span><small>AI</small>
+  </button>
+</nav>
+
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script src="js/weather.js"></script>
+<script src="js/ai.js"></script>
+</body>
+</html>

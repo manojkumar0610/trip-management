@@ -1,0 +1,19 @@
+{
+  "name": "trip-management",
+  "version": "1.0.0",
+  "description": "TripSync — Smart Trip Management Platform",
+  "main": "app/index.html",
+  "scripts": {
+    "start": "npx serve app",
+    "deploy": "netlify deploy --prod --dir=app"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^0.9.0"
+  },
+  "devDependencies": {
+    "serve": "^14.0.0"
+  },
+  "keywords": ["trip", "travel", "management", "itinerary", "expenses"],
+  "author": "Manoj Kumar",
+  "license": "MIT"
+}
