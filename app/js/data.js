@@ -1,149 +1,185 @@
-// ─── TRIPSYNC DATA LAYER ─────────────────────────────────────
+// ─── TRIPSYNC DATA LAYER v2 ───────────────────────────────────
+const AppState = { user: null, trips: [], activeTrip: null };
 
-const AppState = {
-  user: null,
-  currentTrip: null,
-  trips: [],
-  members: [],
-  expenses: [],
-  itinerary: []
-};
+const KEYS = { USER: 'ts_v2_user', TRIPS: 'ts_v2_trips', ACTIVE: 'ts_v2_active' };
 
-// Seed data
-const SEED_TRIPS = [
-  {
-    id: 'leh2026', name: 'Leh Odyssey 2026',
-    from: 'Bangalore', to: 'Leh, Ladakh',
-    type: 'Bike Trip', status: 'active',
-    start: '2026-06-15', end: '2026-07-02',
-    budget: 84000, spent: 28600,
-    days: 18, distance: '4800 km',
-    participants: 8, description: 'Epic Himalayan bike journey from Silicon Valley of India to the Land of High Passes.'
-  },
-  {
-    id: 'spiti2026', name: 'Spiti Valley Winter',
-    from: 'Delhi', to: 'Kaza, Spiti',
-    type: 'Road Trip', status: 'upcoming',
-    start: '2026-10-10', end: '2026-10-18',
-    budget: 45000, spent: 0,
-    days: 9, distance: '1400 km',
-    participants: 5, description: 'Exploring the cold desert monastery valley before roads close for winter.'
-  },
-  {
-    id: 'goa2025', name: 'Goa Weekend Blast',
-    from: 'Pune', to: 'Goa',
-    type: 'Road Trip', status: 'completed',
-    start: '2025-12-20', end: '2025-12-24',
-    budget: 32000, spent: 29400,
-    days: 5, distance: '600 km',
-    participants: 6, description: 'Long weekend coastal escape.'
+function loadAll() {
+  try {
+    AppState.trips = JSON.parse(localStorage.getItem(KEYS.TRIPS) || '[]');
+    const aid = localStorage.getItem(KEYS.ACTIVE);
+    AppState.activeTrip = AppState.trips.find(t => t.id === aid) || AppState.trips[0] || null;
+  } catch(e) { AppState.trips = []; AppState.activeTrip = null; }
+}
+
+function saveTrips() { localStorage.setItem(KEYS.TRIPS, JSON.stringify(AppState.trips)); }
+
+function setActiveTrip(trip) {
+  AppState.activeTrip = trip;
+  localStorage.setItem(KEYS.ACTIVE, trip ? trip.id : '');
+}
+
+function getTripById(id) { return AppState.trips.find(t => t.id === id); }
+
+// ─── TRIP CRUD ────────────────────────────────────────────────
+function createTrip(data) {
+  const trip = {
+    id: 'trip_' + Date.now(),
+    name: data.name, from: data.from, to: data.to,
+    type: data.type || 'Road Trip',
+    status: 'upcoming',
+    startDate: data.startDate || '', endDate: data.endDate || '',
+    budget: parseFloat(data.budget) || 0,
+    description: data.description || '',
+    coverEmoji: tripEmoji(data.type),
+    createdAt: new Date().toISOString(),
+    members: [], expenses: [], itinerary: [],
+  };
+  AppState.trips.unshift(trip);
+  saveTrips();
+  return trip;
+}
+
+function updateTrip(tripId, patch) {
+  const t = getTripById(tripId); if (!t) return;
+  Object.assign(t, patch); saveTrips();
+  if (AppState.activeTrip?.id === tripId) AppState.activeTrip = t;
+}
+
+function deleteTrip(tripId) {
+  AppState.trips = AppState.trips.filter(t => t.id !== tripId);
+  if (AppState.activeTrip?.id === tripId) {
+    AppState.activeTrip = AppState.trips[0] || null;
   }
-];
-
-const SEED_MEMBERS = [
-  { id: 'm1', name: 'Manoj Kumar', phone: '+91 98765 43210', email: 'manoj@example.com', role: 'Organizer', vehicle: 'Royal Enfield Himalayan 450', emergency: 'Priya: +91 98765 00001', initials: 'MK', color: '#4f46e5' },
-  { id: 'm2', name: 'Rahul Sharma', phone: '+91 87654 32109', email: 'rahul@example.com', role: 'Rider', vehicle: 'KTM 390 Adventure', emergency: 'Meena: +91 87654 00002', initials: 'RS', color: '#7c3aed' },
-  { id: 'm3', name: 'Priya Nair', phone: '+91 76543 21098', email: 'priya@example.com', role: 'Photographer', vehicle: 'Honda CB500X', emergency: 'Raj: +91 76543 00003', initials: 'PN', color: '#0891b2' },
-  { id: 'm4', name: 'Vikram Singh', phone: '+91 65432 10987', email: 'vikram@example.com', role: 'Mechanic', vehicle: 'Royal Enfield Classic 350', emergency: 'Sunita: +91 65432 00004', initials: 'VS', color: '#059669' },
-  { id: 'm5', name: 'Ananya Reddy', phone: '+91 54321 09876', email: 'ananya@example.com', role: 'Medic', vehicle: 'BMW G310GS', emergency: 'Arun: +91 54321 00005', initials: 'AR', color: '#dc2626' },
-];
-
-const SEED_EXPENSES = [
-  { id: 'e1', title: 'Hotel Manali', amount: 3200, category: 'Accommodation', paidBy: 'Manoj Kumar', date: '2026-06-20', icon: '🏨', split: 'equal' },
-  { id: 'e2', title: 'Fuel Bangalore-Pune', amount: 4800, category: 'Fuel', paidBy: 'Rahul Sharma', date: '2026-06-15', icon: '⛽', split: 'equal' },
-  { id: 'e3', title: 'Rohtang Pass Permit', amount: 2400, category: 'Entry Fees', paidBy: 'Manoj Kumar', date: '2026-06-21', icon: '🎫', split: 'equal' },
-  { id: 'e4', title: 'Group Dinner – Manali', amount: 5600, category: 'Food', paidBy: 'Vikram Singh', date: '2026-06-20', icon: '🍽️', split: 'equal' },
-  { id: 'e5', title: 'Tyre Puncture Repair', amount: 350, category: 'Repair / Mechanic', paidBy: 'Vikram Singh', date: '2026-06-18', icon: '🔧', split: 'equal' },
-  { id: 'e6', title: 'Hotel Jispa', amount: 2800, category: 'Accommodation', paidBy: 'Priya Nair', date: '2026-06-22', icon: '🏨', split: 'equal' },
-];
-
-const SEED_ITINERARY = [
-  { day: 1, from: 'Bangalore', to: 'Pune', date: '2026-06-15', distance: '560 km', status: 'completed',
-    activities: [
-      { time: '05:00', desc: 'Depart Bangalore – KIA petrol pump meetpoint' },
-      { time: '10:00', desc: 'Breakfast stop – Kamat Hotel, Kolhapur bypass' },
-      { time: '14:30', desc: 'Arrive Pune – Check-in Hotel Saffron' },
-      { time: '19:00', desc: 'Team briefing & dinner' }
-    ], notes: 'Light traffic on NH48. Weather clear.', weather: '☀️ 32°C'
-  },
-  { day: 2, from: 'Pune', to: 'Nagpur', date: '2026-06-16', distance: '720 km', status: 'completed',
-    activities: [
-      { time: '04:30', desc: 'Early start to beat Pune traffic' },
-      { time: '12:00', desc: 'Lunch at Wardha – Ashoka Dhaba' },
-      { time: '17:00', desc: 'Arrive Nagpur – Fuel up at IOC pump' },
-    ], notes: 'Long highway day. Stay hydrated.', weather: '🌤️ 36°C'
-  },
-  { day: 6, from: 'Kullu', to: 'Manali', date: '2026-06-20', distance: '42 km', status: 'active',
-    activities: [
-      { time: '09:00', desc: 'Depart Kullu after breakfast' },
-      { time: '11:00', desc: 'Old Manali market – gear check & supplies' },
-      { time: '13:00', desc: 'Check-in Hotel Snow Valley' },
-      { time: '15:00', desc: 'Rohtang Permit arrangements' },
-      { time: '19:00', desc: 'Group dinner & Leh highway briefing' }
-    ], notes: 'Apply for Rohtang/ILP permits today!', weather: '🌥️ 18°C'
-  },
-  { day: 7, from: 'Manali', to: 'Jispa', date: '2026-06-21', distance: '115 km', status: 'upcoming',
-    activities: [
-      { time: '07:00', desc: 'Cross Rohtang Pass (3,978m) – arrive before 10am' },
-      { time: '10:30', desc: 'Keylong – fuel & snacks' },
-      { time: '14:00', desc: 'Arrive Jispa – Drilbu Resort' },
-    ], notes: 'High altitude starts here. Carry altitude sickness meds.', weather: '❄️ 8°C'
-  },
-  { day: 8, from: 'Jispa', to: 'Sarchu', date: '2026-06-22', distance: '80 km', status: 'upcoming',
-    activities: [
-      { time: '07:30', desc: 'Depart Jispa after light breakfast' },
-      { time: '09:30', desc: 'Baralacha La Pass (4,890m)' },
-      { time: '14:00', desc: 'Bharatpur – lunch at dhabha' },
-      { time: '16:00', desc: 'Arrive Sarchu camp (4,253m)' }
-    ], notes: 'Very high altitude – no exertion, rest well.', weather: '🌨️ 2°C'
-  },
-  { day: 18, from: 'Leh', to: 'Leh (Fly out)', date: '2026-07-02', distance: '0 km', status: 'upcoming',
-    activities: [
-      { time: '09:00', desc: 'Last morning in Leh – Shanti Stupa sunrise' },
-      { time: '12:00', desc: 'Group photo at Leh Palace' },
-      { time: '15:00', desc: 'Cushok Bakula Rimpochee Airport' },
-      { time: '17:30', desc: 'Depart Leh → Bangalore (IndiGo 6E-XXXX)' }
-    ], notes: 'Bikes to be transported via cargo. Pre-book 3 weeks in advance.', weather: '☀️ 22°C'
-  }
-];
-
-// ─── USERS ───────────────────────────────────────────────────
-const DEMO_USER = { email: 'demo@tripsync.in', password: 'demo123', name: 'Manoj Kumar', initials: 'MK' };
-
-function getStoredUser() {
-  try { return JSON.parse(localStorage.getItem('ts_user')); } catch { return null; }
+  saveTrips();
+  localStorage.setItem(KEYS.ACTIVE, AppState.activeTrip?.id || '');
 }
 
-function setStoredUser(u) {
-  localStorage.setItem('ts_user', JSON.stringify(u));
+// ─── MEMBER CRUD ──────────────────────────────────────────────
+function addMemberToTrip(tripId, data) {
+  const trip = getTripById(tripId); if (!trip) return null;
+  const initials = data.name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+  const member = {
+    id: 'mem_' + Date.now(), name: data.name,
+    phone: data.phone || '', email: data.email || '',
+    role: data.role || 'Member', vehicle: data.vehicle || '',
+    emergency: data.emergency || '', initials,
+    color: ROLE_COLORS[data.role] || '#64748b',
+  };
+  trip.members.push(member); saveTrips(); return member;
 }
 
-function clearStoredUser() {
-  localStorage.removeItem('ts_user');
+function removeMemberFromTrip(tripId, memberId) {
+  const trip = getTripById(tripId); if (!trip) return;
+  trip.members = trip.members.filter(m => m.id !== memberId); saveTrips();
 }
 
-// ─── LOAD DATA ───────────────────────────────────────────────
-function loadData() {
-  AppState.trips = JSON.parse(localStorage.getItem('ts_trips') || 'null') || SEED_TRIPS;
-  AppState.members = JSON.parse(localStorage.getItem('ts_members') || 'null') || SEED_MEMBERS;
-  AppState.expenses = JSON.parse(localStorage.getItem('ts_expenses') || 'null') || SEED_EXPENSES;
-  AppState.itinerary = SEED_ITINERARY;
-  AppState.currentTrip = AppState.trips.find(t => t.status === 'active') || AppState.trips[0];
+function updateMember(tripId, memberId, patch) {
+  const trip = getTripById(tripId); if (!trip) return;
+  const m = trip.members.find(m => m.id === memberId);
+  if (m) { Object.assign(m, patch); saveTrips(); }
 }
 
-function saveTrips() { localStorage.setItem('ts_trips', JSON.stringify(AppState.trips)); }
-function saveMembers() { localStorage.setItem('ts_members', JSON.stringify(AppState.members)); }
-function saveExpenses() { localStorage.setItem('ts_expenses', JSON.stringify(AppState.expenses)); }
+// ─── EXPENSE CRUD ─────────────────────────────────────────────
+function addExpenseToTrip(tripId, data) {
+  const trip = getTripById(tripId); if (!trip) return null;
+  const expense = {
+    id: 'exp_' + Date.now(), title: data.title,
+    amount: parseFloat(data.amount), category: data.category || 'Misc',
+    paidById: data.paidById || '', paidByName: data.paidByName || '',
+    date: data.date || today(), icon: CAT_ICONS[data.category] || '📌',
+    splitType: data.splitType || 'equal', settled: false,
+  };
+  trip.expenses.push(expense); saveTrips(); return expense;
+}
 
-// ─── CATEGORY ICONS ──────────────────────────────────────────
+function deleteExpense(tripId, expId) {
+  const trip = getTripById(tripId); if (!trip) return;
+  trip.expenses = trip.expenses.filter(e => e.id !== expId); saveTrips();
+}
+
+// ─── ITINERARY CRUD ───────────────────────────────────────────
+function addDayToTrip(tripId, data) {
+  const trip = getTripById(tripId); if (!trip) return null;
+  const lastDay = trip.itinerary[trip.itinerary.length - 1];
+  const day = {
+    id: 'day_' + Date.now(),
+    day: data.day || (lastDay ? lastDay.day + 1 : 1),
+    date: data.date || '', from: data.from || (lastDay?.to || trip.from || ''),
+    to: data.to || '', distance: data.distance || '',
+    status: data.status || 'upcoming',
+    activities: data.activities || [],
+    notes: data.notes || '', weather: data.weather || '',
+  };
+  trip.itinerary.push(day);
+  trip.itinerary.sort((a,b) => a.day - b.day);
+  saveTrips(); return day;
+}
+
+function deleteDayFromTrip(tripId, dayId) {
+  const trip = getTripById(tripId); if (!trip) return;
+  trip.itinerary = trip.itinerary.filter(d => d.id !== dayId); saveTrips();
+}
+
+function updateDay(tripId, dayId, patch) {
+  const trip = getTripById(tripId); if (!trip) return;
+  const d = trip.itinerary.find(d => d.id === dayId);
+  if (d) { Object.assign(d, patch); saveTrips(); }
+}
+
+// ─── SPLIT ENGINE ─────────────────────────────────────────────
+function computeBalances(trip) {
+  const bal = {};
+  trip.members.forEach(m => bal[m.id] = { name: m.name, net: 0 });
+  const n = trip.members.length || 1;
+  trip.expenses.forEach(exp => {
+    const share = exp.amount / n;
+    Object.keys(bal).forEach(id => {
+      bal[id].net += (id === exp.paidById) ? (exp.amount - share) : -share;
+    });
+  });
+  return Object.values(bal);
+}
+
+function totalSpent(trip) { return trip.expenses.reduce((s,e) => s + e.amount, 0); }
+
+// ─── USER ─────────────────────────────────────────────────────
+function getStoredUser() { try { return JSON.parse(localStorage.getItem(KEYS.USER)); } catch { return null; } }
+function setStoredUser(u) { localStorage.setItem(KEYS.USER, JSON.stringify(u)); }
+function clearStoredUser() { localStorage.removeItem(KEYS.USER); }
+
+// ─── CONSTANTS ────────────────────────────────────────────────
 const CAT_ICONS = {
-  'Accommodation': '🏨', 'Fuel': '⛽', 'Food': '🍽️',
-  'Entry Fees': '🎫', 'Repair / Mechanic': '🔧', 'Medical': '💊',
-  'Gear / Equipment': '🎒', 'Toll / Ferry': '🛂', 'Misc': '📌'
+  'Accommodation':'🏨','Fuel':'⛽','Food':'🍽️','Entry Fees':'🎫',
+  'Repair / Mechanic':'🔧','Medical':'💊','Gear / Equipment':'🎒',
+  'Toll / Ferry':'🛂','Misc':'📌',
 };
-
 const ROLE_COLORS = {
-  'Organizer': '#4f46e5', 'Rider': '#7c3aed', 'Co-Rider': '#0891b2',
-  'Photographer': '#d97706', 'Mechanic': '#059669', 'Navigator': '#2563eb',
-  'Medic': '#dc2626'
+  'Organizer':'#6366f1','Rider':'#8b5cf6','Co-Rider':'#0891b2',
+  'Photographer':'#d97706','Mechanic':'#059669','Navigator':'#2563eb',
+  'Medic':'#dc2626','Member':'#64748b',
 };
+const TRIP_TYPES = ['Bike Trip','Road Trip','Trekking','International','Backpacking','Weekend Getaway'];
+const ROLES = ['Organizer','Rider','Co-Rider','Photographer','Mechanic','Navigator','Medic','Member'];
+const CATEGORIES = ['Accommodation','Fuel','Food','Entry Fees','Repair / Mechanic','Medical','Gear / Equipment','Toll / Ferry','Misc'];
+
+function tripEmoji(type) {
+  return {'Bike Trip':'🏍️','Road Trip':'🚗','Trekking':'🥾','International':'✈️','Backpacking':'🎒','Weekend Getaway':'🏖️'}[type] || '✈️';
+}
+
+function today() { return new Date().toISOString().slice(0,10); }
+function formatINR(n) {
+  if (!n && n!==0) return '₹0'; n=Math.round(n);
+  if(n>=100000) return '₹'+(n/100000).toFixed(1)+'L';
+  if(n>=1000) return '₹'+(n/1000).toFixed(1)+'k';
+  return '₹'+n.toLocaleString('en-IN');
+}
+function formatDate(d) {
+  if (!d) return '';
+  try { return new Date(d).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'2-digit'}); } catch { return d; }
+}
+function lightenColor(hex) {
+  try {
+    const n=parseInt(hex.slice(1),16);
+    return '#'+((1<<24)+(Math.min(255,(n>>16)+70)<<16)+(Math.min(255,((n>>8)&0xFF)+70)<<8)+Math.min(255,(n&0xFF)+70)).toString(16).slice(1);
+  } catch { return hex; }
+}
