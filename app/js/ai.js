@@ -1,260 +1,311 @@
-// ─── AI ASSISTANT v2 — Connected Anthropic Claude ────────────
+// ─── AI ASSISTANT v2.1 ───────────────────────────────────────
 
-const AI_SYSTEM = `You are TripSync AI — an expert travel assistant for Indian road trips, Himalayan bike tours, and group adventure travel. You help users with:
-- Day-wise itinerary planning with specific distances and timings
-- Best routes, road conditions, and pass information  
-- Permit & documentation requirements (ILP, Rohtang, Protected Area)
-- Budget estimation in Indian Rupees for groups
-- Packing lists tailored to trip type and season
-- Accommodation recommendations (budget to premium)
-- Safety tips for high-altitude and remote travel
-- Real-time road condition advice
+const AI_SYSTEM = `You are TripSync AI — an expert travel assistant for Indian road trips, Himalayan bike tours, and group adventure travel.
 
-Rules:
-- Be specific, practical, and concise
+You help with:
+- Day-wise itinerary planning with distances and timings
+- Routes, road conditions, mountain passes, altitude info
+- Permit requirements (ILP, Rohtang, Protected Area Permits)
+- Budget estimates in Indian Rupees for groups
+- Packing lists for specific trip types and seasons
+- Accommodation options (camping, guesthouses, hotels)
+- Safety advice for high-altitude and remote areas
+- Real road condition and seasonal travel advice
+
+Format rules:
 - Use bullet points for lists
-- Always mention distances in km and driving time
-- Costs in Indian Rupees (₹)
-- When generating itineraries, format as: "Day N: Place A → Place B (X km, Y hrs)"
-- If asked to generate a full itinerary, provide it in clean structured format
-- Always mention altitude in meters for Himalayan destinations`;
+- Distances in km, costs in ₹, altitude in meters
+- For itineraries: "Day N: Place A → Place B (X km, ~Y hrs drive)"
+- Always mention altitude for Himalayan destinations
+- Be specific with real place names and practical distances`;
 
-let chatHistory = [];
+let _chatHistory = [];
 
+// ─── API KEY ─────────────────────────────────────────────────
+function getApiKey()    { return localStorage.getItem('ts_anthropic_key') || ''; }
+function setApiKey(key) { if (key) localStorage.setItem('ts_anthropic_key', key); }
+
+// ─── MAIN SEND ───────────────────────────────────────────────
 async function sendAIMessage() {
-  const input = document.getElementById('ai-input');
-  const msg = input.value.trim();
+  const inputEl = document.getElementById('ai-input');
+  const msg = inputEl?.value.trim();
   if (!msg) return;
 
-  input.value = '';
-  autoResizeInput(input);
+  inputEl.value = '';
+  if (inputEl.style) inputEl.style.height = 'auto';
   appendUserMsg(msg);
   showThinking();
-  document.getElementById('ai-send-btn').disabled = true;
 
-  chatHistory.push({ role: 'user', content: msg });
+  const sendBtn = document.getElementById('ai-send-btn');
+  if (sendBtn) sendBtn.disabled = true;
 
-  // Inject trip context
-  const contextMsg = buildTripContext();
-  const messages = contextMsg
-    ? [{ role: 'user', content: contextMsg }, { role: 'assistant', content: 'Got it, I have your trip context. How can I help?' }, ...chatHistory]
-    : chatHistory;
+  _chatHistory.push({ role: 'user', content: msg });
+
+  // Build messages with optional trip context prepended
+  const context = buildTripContext();
+  const messages = context
+    ? [
+        { role: 'user',      content: context },
+        { role: 'assistant', content: 'Got it — I have your trip context loaded. How can I help?' },
+        ..._chatHistory
+      ]
+    : _chatHistory;
+
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    removeThinking();
+    appendBotMsg('🔑 **No API key configured.** Go to **Settings → Anthropic API Key** to add yours.\n\nGet a free key at [console.anthropic.com](https://console.anthropic.com)');
+    if (sendBtn) sendBtn.disabled = false;
+    return;
+  }
 
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type':             'application/json',
+        'x-api-key':                apiKey,
+        'anthropic-version':        '2023-06-01',
+        'anthropic-dangerous-direct-browser-iab-override': 'true',
+      },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1024,
-        system: AI_SYSTEM,
+        model:      'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        system:     AI_SYSTEM,
         messages,
-      })
+      }),
     });
 
+    const data = await res.json();
+
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error?.message || `HTTP ${res.status}`);
+      const errMsg = data?.error?.message || `API error ${res.status}`;
+      throw new Error(errMsg);
     }
 
-    const data = await res.json();
-    const reply = data.content?.[0]?.text || 'Sorry, no response received.';
-    chatHistory.push({ role: 'assistant', content: reply });
+    const reply = data.content?.[0]?.text || 'No response received. Please try again.';
+    _chatHistory.push({ role: 'assistant', content: reply });
     removeThinking();
     appendBotMsg(reply);
 
-    // If reply looks like an itinerary, show import button
-    if (reply.includes('Day') && reply.includes('km') && AppState.activeTrip) {
-      appendImportBtn(reply);
+    // If it looks like an itinerary, show import option
+    if (AppState.activeTrip && reply.includes('Day') && /Day\s+\d+/i.test(reply) && reply.includes('km')) {
+      appendImportBar(reply);
     }
 
   } catch (err) {
     removeThinking();
-    const isApiKeyError = err.message?.includes('401') || err.message?.includes('api_key');
-    appendBotMsg(
-      isApiKeyError
-        ? '🔑 **API key not configured.** To enable AI, add your Anthropic API key in Settings (top-right gear icon).'
-        : `⚠️ Connection error: ${err.message}. Please check your internet and try again.`
+    const isAuthErr = err.message?.includes('401') || err.message?.toLowerCase().includes('api_key') || err.message?.toLowerCase().includes('authentication');
+    appendBotMsg(isAuthErr
+      ? '🔑 **Invalid API key.** Please check your key in Settings → Anthropic API Key.'
+      : `⚠️ **Error:** ${err.message}\n\nCheck your internet connection and try again.`
     );
     console.error('AI error:', err);
   } finally {
-    document.getElementById('ai-send-btn').disabled = false;
+    if (sendBtn) sendBtn.disabled = false;
   }
 }
 
-// ─── ITINERARY GENERATION ─────────────────────────────────────
+// ─── ITINERARY GENERATION ────────────────────────────────────
 async function generateItinerary() {
   const trip = AppState.activeTrip;
   if (!trip) {
-    showToast('Select a trip first', 'warn');
-    navigate('trips'); return;
+    showToast('Select a trip first to generate its itinerary', 'warn');
+    navigate('trips');
+    return;
   }
 
-  const days = trip.startDate && trip.endDate
-    ? Math.ceil((new Date(trip.endDate) - new Date(trip.startDate)) / 86400000)
-    : null;
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    showToast('Add your Anthropic API key in Settings first', 'warn');
+    openSettings();
+    return;
+  }
 
-  const prompt = `Generate a complete day-by-day itinerary for this trip:
-- Trip: ${trip.name}
-- From: ${trip.from} → To: ${trip.to}
+  let days = '';
+  if (trip.startDate && trip.endDate) {
+    const d = Math.ceil((new Date(trip.endDate) - new Date(trip.startDate)) / 86400000);
+    if (d > 0) days = `- Duration: ${d} days (${formatDate(trip.startDate)} to ${formatDate(trip.endDate)})`;
+  }
+
+  const prompt = `Generate a complete, practical day-by-day itinerary for this trip:
+- Name: ${trip.name}
+- Route: ${trip.from} → ${trip.to}
 - Type: ${trip.type}
-${days ? `- Duration: ${days} days` : ''}
-- Budget: ${formatINR(trip.budget)} total
+${days}
+- Budget: ${trip.budget > 0 ? formatINR(trip.budget) + ' total' : 'budget-friendly'}
+- Members: ${trip.members.length > 0 ? trip.members.length + ' people' : 'group trip'}
 
-Format each day as:
-Day N (Date if known): [From] → [To]
-Distance: X km | Drive time: Y hours
-Highlights: [key stops/sights]
-Stay: [accommodation suggestion]
-Notes: [permits, altitude, tips]
+Please format EXACTLY like this for each day:
+Day 1: [From Place] → [To Place] (X km, ~Y hrs)
+Highlights: [key stops or sights]
+Stay: [hotel/camp recommendation]
+Notes: [altitude, permits, tips if needed]
 
-Be specific with real places, distances, and practical advice.`;
+Be specific with real towns, distances, and practical advice for Indian travellers.`;
 
   navigate('ai');
-  document.getElementById('ai-input').value = prompt;
+  const inputEl = document.getElementById('ai-input');
+  if (inputEl) {
+    inputEl.value = prompt;
+    inputEl.style.height = 'auto';
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
+  }
   await sendAIMessage();
 }
 
-function appendImportBtn(aiText) {
+function appendImportBar(aiText) {
   const msgs = document.getElementById('ai-messages');
+  if (!msgs) return;
+  const safeText = aiText.replace(/\\/g,'\\\\').replace(/`/g,'\\`').replace(/\${/g,'\\${');
   const div = document.createElement('div');
   div.className = 'ai-import-bar';
   div.innerHTML = `
-    <span>✨ AI generated an itinerary</span>
-    <button class="btn-primary sm" onclick="importAIItinerary(\`${aiText.replace(/`/g,'\\`')}\`)">
-      Import to Trip →
-    </button>
-  `;
+    <span>✨ AI generated an itinerary for <b>${AppState.activeTrip?.name || 'your trip'}</b></span>
+    <button class="btn-primary sm" id="import-btn">Import to Trip →</button>`;
+  div.querySelector('#import-btn').addEventListener('click', () => importAIItinerary(aiText));
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
 }
 
 function importAIItinerary(text) {
   const trip = AppState.activeTrip;
-  if (!trip) { showToast('No active trip selected','warn'); return; }
+  if (!trip) { showToast('No active trip selected', 'warn'); return; }
 
-  // Parse "Day N: From → To" lines
-  const dayLines = text.match(/Day\s+\d+[^:\n]*:[^\n]+/gi) || [];
+  const lines = text.split('\n');
   let imported = 0;
 
-  dayLines.forEach((line, idx) => {
-    const dayNum = parseInt(line.match(/Day\s+(\d+)/i)?.[1]) || idx+1;
-    const routePart = line.split(':')[1] || '';
-    const parts = routePart.split('→').map(s => s.trim().replace(/[^a-zA-Z\s,]/g,'').trim());
-    const from = parts[0] || '';
-    const to = parts[1] || '';
+  lines.forEach(line => {
+    // Match "Day N: From → To (X km ...)" or "Day N: From → To"
+    const m = line.match(/^Day\s+(\d+)\s*[:\-]\s*(.+?)(?:\s*\(|$)/i);
+    if (!m) return;
+    const dayNum = parseInt(m[1]);
+    const routePart = m[2].trim();
+    const arrowParts = routePart.split(/→|->/).map(s => s.trim().replace(/\s+/g,' '));
+    const from = arrowParts[0] || '';
+    const to   = arrowParts[1] || '';
+
+    // Extract distance if present
+    const distMatch = line.match(/(\d+)\s*km/i);
+    const distance  = distMatch ? distMatch[1] + ' km' : '';
 
     if (from || to) {
+      // Collect notes from subsequent lines
+      const notes = [];
+      const idx = lines.indexOf(line);
+      for (let i = idx+1; i < Math.min(idx+5, lines.length); i++) {
+        if (/^Day\s+\d+/i.test(lines[i])) break;
+        const noteLine = lines[i].trim();
+        if (noteLine.startsWith('Notes:')) notes.push(noteLine.replace('Notes:','').trim());
+      }
+
       addDayToTrip(trip.id, {
-        day: dayNum, from, to,
+        day: dayNum, from, to, distance,
         status: 'upcoming',
-        notes: 'AI generated — review and edit',
+        notes: notes.join(' ') || 'AI generated — review and edit',
+        activities: [],
       });
       imported++;
     }
   });
 
+  if (imported === 0) {
+    showToast('Could not parse itinerary days. Try asking AI to format as "Day N: From → To"', 'warn');
+    return;
+  }
+
   saveTrips();
-  showToast(`Imported ${imported} days into itinerary`, 'success');
-  renderItinerary();
+  showToast(`Imported ${imported} days to ${trip.name}`, 'success');
   navigate('itinerary');
+  renderItinerary();
+
+  // Remove the import bar
+  document.querySelectorAll('.ai-import-bar').forEach(el => el.remove());
 }
 
-// ─── CONTEXT BUILDER ─────────────────────────────────────────
+// ─── CONTEXT ────────────────────────────────────────────────
 function buildTripContext() {
   const trip = AppState.activeTrip;
   if (!trip) return null;
-  return `Current active trip context:
-- Trip: ${trip.name} (${trip.type})
-- Route: ${trip.from} → ${trip.to}
-- Dates: ${trip.startDate || 'TBD'} to ${trip.endDate || 'TBD'}
-- Budget: ${formatINR(trip.budget)}
-- Members: ${trip.members.length} (${trip.members.map(m=>m.name).join(', ') || 'none yet'})
-- Itinerary days planned: ${trip.itinerary.length}
-Please use this context for your responses.`;
+  const spent = totalSpent(trip);
+  return `[Trip Context]
+Trip: ${trip.name} (${trip.type})
+Route: ${trip.from} → ${trip.to}
+Dates: ${trip.startDate||'TBD'} to ${trip.endDate||'TBD'}
+Budget: ${formatINR(trip.budget)}${spent > 0 ? ` (${formatINR(spent)} spent so far)` : ''}
+Members (${trip.members.length}): ${trip.members.map(m=>`${m.name} (${m.role})`).join(', ')||'none yet'}
+Itinerary: ${trip.itinerary.length} days planned
+${trip.description ? `Description: ${trip.description}` : ''}`;
 }
 
-// ─── API KEY MANAGEMENT ───────────────────────────────────────
-function getApiKey() { return localStorage.getItem('ts_anthropic_key') || ''; }
-function setApiKey(key) { localStorage.setItem('ts_anthropic_key', key); }
-
-// Override fetch to inject API key
-const _origFetch = window.fetch.bind(window);
-window.fetch = function(url, opts) {
-  if (typeof url === 'string' && url.includes('anthropic.com')) {
-    const key = getApiKey();
-    if (key) {
-      opts = opts || {};
-      opts.headers = { ...opts.headers, 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-iab-override': 'true' };
-    }
-  }
-  return _origFetch(url, opts);
-};
-
-// ─── CHAT UI HELPERS ─────────────────────────────────────────
+// ─── CHAT UI ────────────────────────────────────────────────
 function appendUserMsg(text) {
   const msgs = document.getElementById('ai-messages');
+  if (!msgs) return;
   const div = document.createElement('div');
   div.className = 'ai-msg user';
   div.innerHTML = `
     <div class="ai-bubble user">${escHtml(text)}</div>
-    <div class="user-av">${AppState.user?.initials || 'U'}</div>
-  `;
+    <div class="user-av">${AppState.user?.initials || 'U'}</div>`;
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
 }
 
 function appendBotMsg(text) {
   const msgs = document.getElementById('ai-messages');
+  if (!msgs) return;
   const div = document.createElement('div');
   div.className = 'ai-msg bot';
   div.innerHTML = `
     <div class="ai-av">✦</div>
-    <div class="ai-bubble bot">${fmtAI(text)}</div>
-  `;
+    <div class="ai-bubble bot">${formatAIText(text)}</div>`;
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
 }
 
 function showThinking() {
   const msgs = document.getElementById('ai-messages');
+  if (!msgs) return;
   const div = document.createElement('div');
-  div.id = 'ai-think'; div.className = 'ai-msg bot';
+  div.id = 'ai-thinking';
+  div.className = 'ai-msg bot';
   div.innerHTML = `<div class="ai-av">✦</div><div class="ai-bubble bot"><div class="ai-dots"><span></span><span></span><span></span></div></div>`;
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
 }
 
-function removeThinking() { document.getElementById('ai-think')?.remove(); }
+function removeThinking() {
+  document.getElementById('ai-thinking')?.remove();
+}
 
 function sendSuggestion(el) {
-  document.getElementById('ai-input').value = el.textContent;
+  const msg = el.textContent.trim();
+  const inputEl = document.getElementById('ai-input');
+  if (inputEl) inputEl.value = msg;
   el.closest('.ai-chips')?.remove();
   sendAIMessage();
 }
 
 function handleAIKey(e) {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAIMessage(); }
-  autoResizeInput(e.target);
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendAIMessage();
+  }
+  // Auto-resize
+  const ta = e.target;
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
 }
 
-function autoResizeInput(el) {
-  el.style.height = 'auto';
-  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
-}
-
-function escHtml(t) {
-  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-function fmtAI(text) {
+function formatAIText(text) {
   return escHtml(text)
-    .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g,'<em>$1</em>')
-    .replace(/`([^`]+)`/g,'<code>$1</code>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g,     '<em>$1</em>')
+    .replace(/`([^`\n]+)`/g,   '<code>$1</code>')
     .replace(/^#{1,3} (.+)$/gm,'<div class="ai-heading">$1</div>')
-    .replace(/^- (.+)$/gm,'<div class="ai-li">• $1</div>')
-    .replace(/^\d+\. (.+)$/gm,'<div class="ai-li">$&</div>')
-    .replace(/\n\n/g,'<br/><br/>')
-    .replace(/\n/g,'<br/>');
+    .replace(/^[•\-] (.+)$/gm, '<div class="ai-li">• $1</div>')
+    .replace(/^\d+\. (.+)$/gm, '<div class="ai-li">$&</div>')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" style="color:var(--accent2)">$1</a>')
+    .replace(/\n\n/g, '<br/><br/>')
+    .replace(/\n/g,   '<br/>');
 }

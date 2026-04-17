@@ -194,7 +194,7 @@
         <button class="quick-btn" onclick="navigate('members');showAddMember()"><span>👤</span>Add Member</button>
         <button class="quick-btn" onclick="navigate('weather')"><span>⛅</span>Check Weather</button>
         <button class="quick-btn" onclick="generateItinerary()"><span>✦</span>AI Itinerary</button>
-        <button class="quick-btn" onclick="navigate('itinerary');addDay()"><span>📅</span>Add Day</button>
+        <button class="quick-btn" onclick="navigate('itinerary');submitAddDay()"><span>📅</span>Add Day</button>
         <button class="quick-btn" onclick="navigate('trips');showCreateTrip()"><span>🗺</span>New Trip</button>
       </div>
 
@@ -277,7 +277,7 @@
 
         <div class="form-actions" style="margin-top:16px">
           <button type="button" class="btn-ghost" onclick="hideCreateTrip()">Cancel</button>
-          <button type="button" class="btn-primary" onclick="createTrip()">Create Trip →</button>
+          <button type="button" class="btn-primary" onclick="submitCreateTrip()">Create Trip →</button>
         </div>
         </form>
       </div>
@@ -294,7 +294,7 @@
         </div>
         <div class="header-actions">
           <button class="btn-ghost" onclick="generateItinerary()">✦ AI Generate</button>
-          <button class="btn-primary" onclick="addDay()">+ Add Day</button>
+          <button class="btn-primary" onclick="submitAddDay()">+ Add Day</button>
         </div>
       </div>
       <div class="itinerary-timeline" id="itinerary-timeline"></div>
@@ -329,7 +329,7 @@
         </div>
         <div class="form-actions">
           <button class="btn-ghost" onclick="hideAddMember()">Cancel</button>
-          <button class="btn-primary" onclick="addMember()">Add Member →</button>
+          <button class="btn-primary" onclick="submitAddMember()">Add Member →</button>
         </div>
       </div>
 
@@ -371,7 +371,7 @@
         </div>
         <div class="form-actions">
           <button class="btn-ghost" onclick="hideAddExpense()">Cancel</button>
-          <button class="btn-primary" onclick="addExpense()">Add & Split →</button>
+          <button class="btn-primary" onclick="submitAddExpense()">Add & Split →</button>
         </div>
       </div>
 
